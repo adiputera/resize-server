@@ -72,7 +72,7 @@ http://serveraddress/resize/`blobName`/`path`?s=`size`&f=`format`&g=`gravity`&m=
 This method requires blob storage URLs to be configured via environment variables (see `.env.example`).
 
 **Query Parameters:**
-- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, or `c300x300`. If omitted, only format conversion is performed.
+- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, `c300x300`, or just `300` (plain number = width). If omitted, only format conversion is performed.
 - `f` - Format (optional): `jpg`, `png`, `webp`, or any ImageMagick-supported format (default: `png`)
 - `g` - Gravity (optional): `c`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw` (default: `c`)
 - `m` - Mode (optional): `resize`, `crop`, or `scale` (default: `resize`)
@@ -82,6 +82,9 @@ This method requires blob storage URLs to be configured via environment variable
 ```
 # Resize to 300x300 and crop, output as JPG
 http://localhost:7071/resize/sample-blob/path/to/image.jpg?s=300x300&f=jpg&g=ne&m=crop&q=90
+
+# Resize width to 500 (proportional height)
+http://localhost:7071/resize/sample-blob/path/to/image.jpg?s=500&f=jpg
 
 # Convert format only (no resizing)
 http://localhost:7071/resize/sample-blob/path/to/image.jpg?f=png
@@ -97,7 +100,7 @@ http://serveraddress/media/`blobName`/`path`?s=`size`&f=`format`&g=`gravity`&m=`
 This endpoint uses Sharp library with heic-decode for better HEIC/HEIF support. Same configuration as Method 2.
 
 **Query Parameters:**
-- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, or `c300x300`. If omitted, only format conversion is performed.
+- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, `c300x300`, or just `300` (plain number = width). If omitted, only format conversion is performed.
 - `f` - Format (optional): `jpg`, `png`, `webp`, `heic`, `heif`, `avif`, `gif` (default: `png`)
 - `g` - Gravity (optional): `c`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw` (default: `c`)
 - `m` - Mode (optional): `resize`, `crop`, or `scale` (default: `resize`)
@@ -123,6 +126,66 @@ http://localhost:7071/media/sample-blob/path/to/image.jpg?s=800x600&f=avif&q=90
 Set blob storage URLs in environment variables:
 ```bash
 BLOB_URL_SAMPLE_BLOB=example.blob.core.windows.net
+```
+
+### Method 4: POST /media - Upload and Process Images (New)
+
+Upload image files directly with JWT authentication.
+
+**Authentication:**
+
+First, get a JWT token from the `/auth` endpoint:
+
+```bash
+# POST /auth with Basic Auth
+curl -X POST http://localhost:7071/auth \
+  -H "Authorization: Basic $(echo -n 'my_client:my-secret' | base64)"
+
+# Response:
+{
+  "access_token": "eyJhbGc...",
+  "token_type": "Bearer",
+  "expiresIn": 890
+}
+```
+
+**Upload and Process:**
+
+```bash
+# POST /media with Bearer token and query params
+curl -X POST "http://localhost:7071/media?s=300x300&f=webp&q=85" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @/path/to/image.jpg \
+  --output result.webp
+```
+
+**Query Parameters:**
+- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, or just `300` (plain number = width)
+- `f` - Format (optional): `jpg`, `png`, `webp`, `heic`, `heif`, `avif`, `gif` (default: `png`)
+- `q` - Quality (optional): 0-100 (default: `80`)
+
+**Environment Variables:**
+```bash
+# JWT Configuration
+jwt_secret_key=your-secret-key-here
+jwt_expire_time=900
+
+# Client Credentials (format: <CLIENT_ID>_auth_client=<CLIENT_SECRET>)
+my_client_auth_client=my-secret
+```
+
+**Examples:**
+```bash
+# Convert HEIC to WebP
+curl -X POST "http://localhost:7071/media?f=webp" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-binary @image.heic -o output.webp
+
+# Resize to 500x500 and convert to PNG
+curl -X POST "http://localhost:7071/media?s=500x500&f=png" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-binary @image.jpg -o output.png
 ```
 
 ### Options (Traditional Method)
