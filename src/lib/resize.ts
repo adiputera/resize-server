@@ -47,11 +47,11 @@ export class ResizeJob {
         }
     }
 
-    async validateRemoteSource(): Promise<number | string> {
+    async validateRemoteSource(): Promise<{ status: number | string; isImage: boolean }> {
         // if remote url has no hostname end with status 400
         const parsedUrl = url.parse(this.options.url);
         if (!parsedUrl.hostname) {
-            return 400;
+            return { status: 400, isImage: false };
         }
 
         try {
@@ -60,23 +60,44 @@ export class ResizeJob {
             });
 
             if (response.status !== 200) {
-                return response.status;
+                return { status: response.status, isImage: false };
             }
 
             const contentType = response.headers['content-type'];
-            if (!contentType || !contentType.split('/')[0].includes('image')) {
-                return 415;
-            }
+            const isImage = contentType ? contentType.split('/')[0].includes('image') : false;
 
-            return 200;
+            return { status: 200, isImage };
         } catch (error: any) {
             if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-                return 'ETIMEDOUT';
+                return { status: 'ETIMEDOUT', isImage: false };
             }
             if (error.response) {
-                return error.response.status;
+                return { status: error.response.status, isImage: false };
             }
-            return 500;
+            return { status: 500, isImage: false };
+        }
+    }
+
+    async downloadDirect(): Promise<void> {
+        const source = this.options.url;
+        const cacheFileStream = fs.createWriteStream(this.cacheFilePath);
+
+        try {
+            const response = await axios.get(source, {
+                responseType: 'stream',
+            });
+
+            response.data.pipe(cacheFileStream);
+
+            cacheFileStream.on('finish', () => {
+                this.callback(null, this.cacheFilePath);
+            });
+
+            cacheFileStream.on('error', () => {
+                this.callback({ status: 500, url: this.options.url });
+            });
+        } catch (error) {
+            this.callback({ status: 500, url: this.options.url });
         }
     }
 
@@ -93,14 +114,28 @@ export class ResizeJob {
             config.convertCmd
         );
 
-        const convert = spawn(config.convertCmd, im.buildCommandString());
+        const commandArgs = im.buildCommandString();
+        log.write('ImageMagick command: ' + config.convertCmd + ' ' + commandArgs.join(' '));
+
+        const convert = spawn(config.convertCmd, commandArgs);
         convert.stdout.pipe(cacheFileStream);
 
-        convert.on('close', () => {
-            this.callback(null, this.cacheFilePath);
+        // Log stderr for debugging
+        convert.stderr.on('data', (data) => {
+            log.write('ImageMagick stderr: ' + data.toString());
         });
 
-        convert.on('error', () => {
+        convert.on('close', (code) => {
+            if (code === 0) {
+                this.callback(null, this.cacheFilePath);
+            } else {
+                log.write(`ImageMagick process exited with code ${code}`);
+                this.callback({ status: 500, url: this.options.url });
+            }
+        });
+
+        convert.on('error', (err) => {
+            log.write('ImageMagick error: ' + err.message);
             this.callback({ status: 500, url: this.options.url });
         });
 
@@ -116,11 +151,11 @@ export class ResizeJob {
     }
 
     async startResize(): Promise<void> {
-        const status = await this.validateRemoteSource();
+        const validation = await this.validateRemoteSource();
 
-        if (status !== 200) {
-            console.log(status);
-            return this.callback({ status, url: this.options.url });
+        if (validation.status !== 200) {
+            console.log(validation.status);
+            return this.callback({ status: validation.status, url: this.options.url });
         }
 
         const exists = await this.isAlreadyCached(this.cacheFilePath);
@@ -129,8 +164,13 @@ export class ResizeJob {
             log.write(new Date() + ' - CACHE HIT: ' + this.options.imagefile);
             this.callback(null, this.cacheFilePath, true);
         } else {
-            log.write(new Date() + ' - RESIZE START: ' + this.options.imagefile);
-            await this.resizeStream();
+            if (validation.isImage) {
+                log.write(new Date() + ' - RESIZE START: ' + this.options.imagefile);
+                await this.resizeStream();
+            } else {
+                log.write(new Date() + ' - DIRECT DOWNLOAD (non-image): ' + this.options.imagefile);
+                await this.downloadDirect();
+            }
         }
     }
 }

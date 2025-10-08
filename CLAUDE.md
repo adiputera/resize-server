@@ -35,7 +35,10 @@ npm run clean     # Remove dist directory
 1. **src/server.ts** - Express 4.x app entry point
    - Sets up routes including health check (`/health`) and help page (`/`)
    - Main resize route matches pattern: `/{resize}/{output}/{url}` (see RequestSplitter.urlMatch)
-   - Creates ResizeJob instances using async/await pattern
+   - New blob storage endpoints:
+     - `/resize/:blobName/*` - ImageMagick-based processing with query params
+     - `/media/:blobName/*` - Sharp-based processing with heic-decode support
+   - Creates ResizeJob or SharpResizeJob instances using async/await pattern
    - Uses modern Express 4.x middleware (no bodyParser)
 
 2. **src/lib/requestsplitter.ts** - URL parsing and option mapping
@@ -44,7 +47,7 @@ npm run clean     # Remove dist directory
    - `mapOptions()` transforms URL components into typed `ImageOptions` object
    - Sanitizes quality param to integers 0-100
 
-3. **src/lib/resize.ts** - Core resize logic with async/await
+3. **src/lib/resize.ts** - Core resize logic with ImageMagick and async/await
    - `ResizeJob` class handles the entire resize workflow using promises:
      - Generates cache filename from SHA1 hash of options
      - Validates remote source URLs using axios (checks hostname, timeout, status, content-type)
@@ -53,6 +56,17 @@ npm run clean     # Remove dist directory
    - Uses streaming pipeline: axios stream → convert stdin → convert stdout → cache file
    - Cache hit returns immediately; cache miss triggers resize
    - Replaces deprecated `request` library with `axios`
+
+3b. **src/lib/sharpResize.ts** - Sharp-based resize logic with HEIC support
+   - `SharpResizeJob` class handles image processing using Sharp library:
+     - Generates cache filename from SHA1 hash of options (same as ResizeJob)
+     - Validates remote source URLs using axios
+     - Downloads image as buffer and processes with Sharp
+     - Special HEIC/HEIF handling using heic-decode library
+     - Supports formats: jpg, png, webp, heic, heif, avif, gif
+   - HEIC processing flow: axios → heic-decode → sharp (raw RGBA) → format conversion → cache file
+   - Regular images: axios → sharp → format conversion → cache file
+   - Faster than ImageMagick for most operations
 
 4. **src/lib/imagemagickcommand.ts** - ImageMagick command builder
    - Factory function that returns different command builders based on action
@@ -101,6 +115,9 @@ export type GravityType = 'nw' | 'n' | 'ne' | 'w' | 'c' | 'e' | 'sw' | 's' | 'se
 - **express**: 4.x (upgraded from 3.x)
 - **pug**: 3.x (replaces jade)
 - **axios**: Latest (replaces deprecated request)
+- **sharp**: 0.34.x (image processing library)
+- **heic-decode**: 2.x (HEIC/HEIF decoding)
+- **dotenv**: 17.x (environment variable management)
 - **typescript**: 5.x with strict mode enabled
 - Native Promises/async-await (replaces Q library)
 

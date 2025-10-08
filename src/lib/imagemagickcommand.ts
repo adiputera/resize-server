@@ -42,22 +42,31 @@ abstract class AbstractImageMagickCommand {
     }
 
     buildCommandString(): string[] {
-        const imCommand = [
+        const actionString = this.buildActionString();
+        const commandParts = [
             this.convertCmd,
             this.files.tmp,
-            this.buildActionString(),
+        ];
+
+        // Only add action string if it's not empty
+        if (actionString) {
+            commandParts.push(actionString);
+        }
+
+        commandParts.push(
             '+repage',
             '-quality',
             this.options.quality,
-            '-format',
-            this.options.format,
             '-background',
             'white',
-            '-flatten',
-            this.files.cache,
-        ].join(' ');
+            '-flatten'
+        );
 
-        return imCommand.split(' ');
+        // For stdout output, use format:- syntax (e.g., webp:-, png:-, jpg:-)
+        const outputFile = this.files.cache === '-' ? `${this.options.format}:-` : this.files.cache;
+        commandParts.push(outputFile);
+
+        return commandParts.join(' ').split(' ');
     }
 
     abstract buildActionString(): string;
@@ -89,11 +98,23 @@ class CropImageMagickCommand extends AbstractImageMagickCommand {
     }
 }
 
+class ConvertImageMagickCommand extends AbstractImageMagickCommand {
+    buildActionString(): string {
+        // No resize/crop/scale, just format conversion
+        return '';
+    }
+}
+
 export default function ImageMagickCommand(
     options: ImageOptions,
     files: FileOptions,
     convertCmd?: string
 ): AbstractImageMagickCommand {
+    // If no dimensions provided, just convert format
+    if (!options.width && !options.height) {
+        return new ConvertImageMagickCommand(options, files, convertCmd);
+    }
+
     if (options.action === 'crop') {
         return new CropImageMagickCommand(options, files, convertCmd);
     } else if (options.width && options.height) {

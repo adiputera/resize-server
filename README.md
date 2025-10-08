@@ -61,9 +61,71 @@ npm run test:watch  # Watch mode
 
 ## Usage
 
+### Method 1: Traditional URL-based (Original)
+
 http://serveraddress/`resize`/`output`/`url`
 
-### Options
+### Method 2: Blob Storage with Query Parameters - ImageMagick (New)
+
+http://serveraddress/resize/`blobName`/`path`?s=`size`&f=`format`&g=`gravity`&m=`mode`&q=`quality`
+
+This method requires blob storage URLs to be configured via environment variables (see `.env.example`).
+
+**Query Parameters:**
+- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, or `c300x300`. If omitted, only format conversion is performed.
+- `f` - Format (optional): `jpg`, `png`, `webp`, or any ImageMagick-supported format (default: `png`)
+- `g` - Gravity (optional): `c`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw` (default: `c`)
+- `m` - Mode (optional): `resize`, `crop`, or `scale` (default: `resize`)
+- `q` - Quality (optional): 0-100 (default: `80`)
+
+**Examples:**
+```
+# Resize to 300x300 and crop, output as JPG
+http://localhost:7071/resize/sample-blob/path/to/image.jpg?s=300x300&f=jpg&g=ne&m=crop&q=90
+
+# Convert format only (no resizing)
+http://localhost:7071/resize/sample-blob/path/to/image.jpg?f=png
+
+# Convert HEIC to WebP
+http://localhost:7071/resize/sample-blob/path/to/image.heic?f=webp&q=85
+```
+
+### Method 3: Blob Storage with Query Parameters - Sharp + HEIC Support (New)
+
+http://serveraddress/media/`blobName`/`path`?s=`size`&f=`format`&g=`gravity`&m=`mode`&q=`quality`
+
+This endpoint uses Sharp library with heic-decode for better HEIC/HEIF support. Same configuration as Method 2.
+
+**Query Parameters:**
+- `s` - Size (optional): Can be `300x300`, `w300`, `h300`, or `c300x300`. If omitted, only format conversion is performed.
+- `f` - Format (optional): `jpg`, `png`, `webp`, `heic`, `heif`, `avif`, `gif` (default: `png`)
+- `g` - Gravity (optional): `c`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`, `nw` (default: `c`)
+- `m` - Mode (optional): `resize`, `crop`, or `scale` (default: `resize`)
+- `q` - Quality (optional): 0-100 (default: `80`)
+
+**Examples:**
+```
+# Convert HEIC to WebP with resize
+http://localhost:7071/media/sample-blob/path/to/image.heic?s=300x300&f=webp&q=85
+
+# Convert HEIC to PNG (no resize)
+http://localhost:7071/media/sample-blob/path/to/image.heic?f=png
+
+# Resize and convert to AVIF
+http://localhost:7071/media/sample-blob/path/to/image.jpg?s=800x600&f=avif&q=90
+```
+
+**Key Differences:**
+- `/resize` - Uses ImageMagick (requires libheif for HEIC support)
+- `/media` - Uses Sharp with heic-decode (native HEIC/HEIF support, faster processing)
+
+**Configuration:**
+Set blob storage URLs in environment variables:
+```bash
+BLOB_URL_SAMPLE_BLOB=example.blob.core.windows.net
+```
+
+### Options (Traditional Method)
 
 **`resize`**
 
