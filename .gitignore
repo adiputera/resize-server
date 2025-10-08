@@ -1,4 +1,7 @@
+node_modules/
+dist/
+cache/
+*.log
 .DS_Store
-node_modules/*
-cache/*
-tmp/*
+*.swp
+.env

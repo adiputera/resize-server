@@ -1,0 +1,136 @@
+import fs from 'fs';
+import { promises as fsPromises } from 'fs';
+import url from 'url';
+import { spawn } from 'child_process';
+import crypto from 'crypto';
+import axios from 'axios';
+import log from './log';
+import config from '../config';
+import ImageMagickCommand from './imagemagickcommand';
+import type { ImageOptions } from './imagemagickcommand';
+
+export interface ResizeError {
+    status: number | string;
+    url: string;
+}
+
+type ResizeCallback = (err: ResizeError | null, file?: string, cached?: boolean) => void;
+
+export class ResizeJob {
+    private options: ImageOptions;
+    private callback: ResizeCallback;
+    private cacheFileName: string;
+    private cacheFilePath: string;
+
+    constructor(options: ImageOptions, callback: ResizeCallback) {
+        this.options = options;
+        this.callback = callback;
+
+        this.cacheFileName = this.generateCacheFilename();
+        this.cacheFilePath = config.cacheDirectory + this.cacheFileName;
+    }
+
+    generateCacheFilename(): string {
+        return (
+            crypto.createHash('sha1').update(JSON.stringify(this.options)).digest('hex') +
+            '.' +
+            this.options.format
+        );
+    }
+
+    async isAlreadyCached(filename: string): Promise<boolean> {
+        try {
+            await fsPromises.access(filename);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async validateRemoteSource(): Promise<number | string> {
+        // if remote url has no hostname end with status 400
+        const parsedUrl = url.parse(this.options.url);
+        if (!parsedUrl.hostname) {
+            return 400;
+        }
+
+        try {
+            const response = await axios.head(this.options.url, {
+                timeout: 5000,
+            });
+
+            if (response.status !== 200) {
+                return response.status;
+            }
+
+            const contentType = response.headers['content-type'];
+            if (!contentType || !contentType.split('/')[0].includes('image')) {
+                return 415;
+            }
+
+            return 200;
+        } catch (error: any) {
+            if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+                return 'ETIMEDOUT';
+            }
+            if (error.response) {
+                return error.response.status;
+            }
+            return 500;
+        }
+    }
+
+    async resizeStream(): Promise<void> {
+        const source = this.options.url;
+        const cacheFileStream = fs.createWriteStream(this.cacheFilePath);
+
+        const im = ImageMagickCommand(
+            this.options,
+            {
+                tmp: '-',
+                cache: '-',
+            },
+            config.convertCmd
+        );
+
+        const convert = spawn(config.convertCmd, im.buildCommandString());
+        convert.stdout.pipe(cacheFileStream);
+
+        convert.on('close', () => {
+            this.callback(null, this.cacheFilePath);
+        });
+
+        convert.on('error', () => {
+            this.callback({ status: 500, url: this.options.url });
+        });
+
+        try {
+            const response = await axios.get(source, {
+                responseType: 'stream',
+            });
+            response.data.pipe(convert.stdin);
+        } catch (error) {
+            convert.kill();
+            this.callback({ status: 500, url: this.options.url });
+        }
+    }
+
+    async startResize(): Promise<void> {
+        const status = await this.validateRemoteSource();
+
+        if (status !== 200) {
+            console.log(status);
+            return this.callback({ status, url: this.options.url });
+        }
+
+        const exists = await this.isAlreadyCached(this.cacheFilePath);
+
+        if (exists) {
+            log.write(new Date() + ' - CACHE HIT: ' + this.options.imagefile);
+            this.callback(null, this.cacheFilePath, true);
+        } else {
+            log.write(new Date() + ' - RESIZE START: ' + this.options.imagefile);
+            await this.resizeStream();
+        }
+    }
+}

@@ -1,27 +1,40 @@
 {
-  "name": "resize-server",
-  "version": "1.0.1",
-  "description": "A simple node.js image resize service",
-  "main": "server.js",
-  "scripts": {
-    "test": "grunt test",
-    "watch": "grunt watch"
-  },
-  "dependencies": {
-    "express": "3.0.1",
-    "jade": "0.27.7",
-    "request": "2.11.4",
-    "q": "~0.9.6"
-  },
-  "devDependencies": {
-    "chai": "~1.7.0",
-    "grunt": "~0.4.1",
-    "grunt-clear": "~0.2.1",
-    "grunt-cli": "^1.2.0",
-    "grunt-contrib-watch": "~0.5.1",
-    "grunt-mocha-test": "~0.5.0",
-    "sinon": "~1.7.3",
-    "sinon-chai": "~2.4.0"
-  },
-  "license": "MIT"
+    "name": "resizer-server-typescript",
+    "version": "2.0.0",
+    "description": "A simple Node.js image resize service - TypeScript edition",
+    "main": "dist/server.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/server.js",
+        "dev": "ts-node src/server.ts",
+        "watch": "tsc -w",
+        "test": "mocha -r ts-node/register 'spec/**/*.spec.ts'",
+        "test:watch": "mocha -r ts-node/register 'spec/**/*.spec.ts' --watch --watch-files src/**/*.ts,spec/**/*.ts",
+        "lint": "eslint src/**/*.ts",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "express": "^4.19.2",
+        "pug": "^3.0.3",
+        "axios": "^1.7.7"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.14.10",
+        "@types/chai": "^4.3.16",
+        "@types/mocha": "^10.0.7",
+        "@types/sinon": "^17.0.3",
+        "@typescript-eslint/eslint-plugin": "^7.16.0",
+        "@typescript-eslint/parser": "^7.16.0",
+        "chai": "^5.1.1",
+        "eslint": "^8.57.0",
+        "mocha": "^10.6.0",
+        "sinon": "^18.0.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.5.3"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "license": "MIT"
 }
