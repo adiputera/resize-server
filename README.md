@@ -59,6 +59,74 @@ npm test
 npm run test:watch  # Watch mode
 ```
 
+## Docker
+
+### Build and Run with Docker
+
+**Build the image:**
+```bash
+docker build -t resize-server .
+```
+
+**Run the container:**
+```bash
+docker run -d \
+  -p 5060:5060 \
+  -v $(pwd)/cache:/app/cache \
+  -v $(pwd)/tmp:/app/tmp \
+  --name resize-server \
+  resize-server
+```
+
+**Run with environment variables:**
+```bash
+docker run -d \
+  -p 5060:5060 \
+  -e PORT=5060 \
+  -e BASE_URL=https://your-blob-storage.com \
+  -e jwt_secret_key=your-secret-key \
+  -v $(pwd)/cache:/app/cache \
+  -v $(pwd)/tmp:/app/tmp \
+  --name resize-server \
+  resize-server
+```
+
+### Build and Run with Docker Compose
+
+**Start the service:**
+```bash
+docker-compose up -d
+```
+
+**View logs:**
+```bash
+docker-compose logs -f
+```
+
+**Stop the service:**
+```bash
+docker-compose down
+```
+
+**Configuration:**
+
+Edit `docker-compose.yml` to add your environment variables:
+```yaml
+environment:
+  - PORT=5060
+  - BASE_URL=https://your-blob-storage.com
+  - jwt_secret_key=your-secret-key
+  - BLOB_URL_SAMPLE_BLOB=example.blob.core.windows.net
+```
+
+### Docker Features
+
+- Multi-stage build for optimized image size (~150MB)
+- Includes both ImageMagick and Sharp for image processing
+- Built-in health check on `/health` endpoint
+- Runs as non-root user for security
+- Persistent cache and tmp volumes
+
 ## Usage
 
 ### Method 1: Traditional URL-based (Original)

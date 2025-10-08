@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  resize-server:
+    build: .
+    ports:
+      - "${PORT:-5060}:5060"
+    environment:
+      - PORT=5060
+      - NODE_ENV=production
+      # Add your environment variables here
+      # - BASE_URL=your_base_url
+    volumes:
+      - ./cache:/app/cache
+      - ./tmp:/app/tmp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5060/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
